@@ -1,10 +1,10 @@
-📊 Crime & Weather Analysis in Colchester (2024)
+# 📊 Crime & Weather Analysis in Colchester (2024)
 This project explores the relationship between crime patterns and weather conditions in Colchester, UK, using publicly available street-level police data and climate records for the year 2024. It is the final project for the MA304 module.
 
-🧠 Objective
+## 🧠 Objective
 To analyze whether and how daily weather factors (e.g., temperature, precipitation) influence the frequency and type of crimes committed. This study also investigates spatial and seasonal trends using statistical and interactive visualizations.
 
-📁 Datasets
+## 📁 Datasets
 crime24.csv – Street-level crime reports from Colchester (via UK Police API)
 
 temp24.csv – Daily weather observations from a regional station (via Ogimet Climate Data)
@@ -26,14 +26,14 @@ plotly
 
 dygraphs
 
-🧹 Data Preprocessing
+## 🧹 Data Preprocessing
 Crime dates were normalized to full date strings (e.g., "2024-01" → "2024-01-01").
 
 Weather data was directly parsed.
 
 Both datasets were merged on the date column to allow joint analysis.
 
-📈 Key Analyses & Visualizations
+## 📈 Key Analyses & Visualizations
 Descriptive Stats: Frequencies, bar/pie charts by crime type.
 
 Time Series: Daily crime count fluctuations and seasonal patterns.
@@ -42,7 +42,7 @@ Weather Correlation: Temperature vs. crime count scatter plots and correlation m
 
 Geospatial Mapping: Interactive maps identifying crime hotspots in Colchester.
 
-🔍 Insights
+## 🔍 Insights
 Anti-social behaviour and criminal damage were the most reported crimes.
 
 There is a weak but positive correlation between temperature and crime.
@@ -60,10 +60,10 @@ Ensure required R libraries are installed.
 
 Run analyses in RStudio to explore or reproduce results.
 
-📄 License
+## 📄 License
 This project is licensed under the MIT License. See LICENSE for more details.
 
-👤 Author
+## 👤 Author
 Iling Chen (2400990)
 University of Essex, MA304 – Data Analysis Project
 Submitted: April 2025
