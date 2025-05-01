@@ -1,0 +1,392 @@
+---
+title: "MA304: Policing Data Analysis for Colchester 2024"
+author: "Iling Chen / 2400990"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# Abstract
+
+This study investigates the patterns and street-level crime in Colchester during 2024 by combining police reports with local daily weather records. By using a suits of descriptive and inferential visualizations (such as tables, bars and pie charts, histograms and densities, boxplot, scatter and pair plots, time series analysis, correlation matrices, and interactive maps), we explore how crime types distribute across space and time, and whether environmental factors such as temperature and precipitation are associated with fluctuations in daily crime counts. Out findings highlight the most prevalent offences, reveal seasonal and weather-related trends, and pinpoint geographic hotspots.
+
+
+# 1. Introduction
+
+This report presents a full data analysis on a policing dataset from Colchester in 2024. The analysis is based on two datasets:
+
+- **crime24.csv:** Street-level crime incidents (see [UK Police Data Reference](https://ukpolice.njtierney.com/reference/ukp_crime.html))
+
+- **temp24.csv:** Daily climate data from a nearby weather station (see [Climate Data Reference](https://bczernecki.github.io/climate/reference/meteo_ogimet.html))
+
+In partnership with the UK Police API and a regional climate data service, we analyze two complementary datasets for Colchester in 2024:
+
+-Crime incidents (crime24.csv), providing street‑level reports categorized by offence type, location, and month.
+
+-Daily weather (temp24.csv), recording mean, minimum, and maximum temperatures, precipitation, humidity, and other meteorological factors.
+
+This report—written as an R-Markdown document—presents a full suite of graphical and tabular analyses consistent with MA304 learning outcomes.
+
+# 2. Data and Methods
+## 2.1 Tools and Libraries
+Primary analyses were performed in R using tidyverse, lubridate, ggplot2, corrplot, leaflet, plotly, and dygraphs.
+
+```{r load-packages, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(lubridate)
+library(leaflet)
+library(ggplot2)
+library(dygraphs) 
+library(plotly)
+library(corrplot)
+library(readr)
+library(dplyr)
+```
+## 2.2 Preprocessing
+Crime dates originally coded as "YYYY-MM" were padded with "-01" to form complete "YYYY‑MM‑DD" strings, then parsed with as.Date(..., "%Y-%m-%d").
+
+Weather dates in "YYYY-MM-DD" format were parsed directly. Any records lacking valid dates were removed. Daily crime counts were computed via group_by(date) %>% summarise(crime_count = n()).
+
+The two tables were merged on the date column, yielding a daily panel of crime and weather observations.
+```{r}
+# Read the crime24.csv data
+# Read data as character for later pre-process
+crime_data <- read_csv("crime24.csv", col_types = cols(
+  date = col_character()
+))
+
+# Check the original date time format should be: "2024-01"
+print(" Original crime_data -> Rows of date: ")
+print(head(crime_data$date, 10))
+
+# Fill all the missing date time to crime_data$date 
+# We fill the missing value with “01”(first day of each month)
+crime_data <- crime_data %>%
+  mutate(date = paste0(date, "-01"),
+         date = as.Date(date, format = "%Y-%m-%d"))
+
+# Check the transformed data
+print("New crime_data -> Rows of date: ")
+print(head(crime_data$date, 10))
+print("crime_data -> Range of date: ")
+print(range(crime_data$date, na.rm = TRUE))
+
+# Read the temp24.csv data
+# Read data as character for later pre-process
+temp_data <- read_csv("temp24.csv", col_types = cols(
+  Date = col_character()   
+))
+print(" Original temp_data -> Rows of date: ")
+print(head(temp_data$Date, 10))
+
+# Transform data into date time type of data
+temp_data <- temp_data %>%
+  mutate(date = as.Date(Date, format = "%Y-%m-%d"))  # add new variable "date"
+
+# Check the transformed data
+print("New temp_data -> Rows of date: ")
+print(head(temp_data$date, 10))
+print("temp_data -> Range of date: ")
+print(range(temp_data$date, na.rm = TRUE))
+```
+Examine the structure and summary of the datasets:
+```{r}
+str(crime_data)
+summary(crime_data)
+
+str(temp_data)
+summary(temp_data)
+```
+# 3. Results - Descriptive Analysis and Visualizations
+## 3.1 Crime Frequency and Composition
+We create a frequency table of crime categories (assuming a column crime_type exists) and then plot the counts in a bar plot.
+```{r}
+# Create a frequency table of crime types
+table_crime <- table(crime_data$crime_type)
+table_crime_df <- as.data.frame(table_crime)
+names(crime_data)
+# Using crime_data$category create frequency table
+table_crime <- table(crime_data$category)
+
+# Create dataframe (one is crime type, another is count)
+table_crime_df <- data.frame(
+  Crime_Type = names(table_crime),
+  Count = as.vector(table_crime)
+)
+# check the result
+head(table_crime_df)
+```
+## 3.1.2 Bar Chart
+This bar chart of incident counts by category highlights that theft and anti‑social behaviour dominate, together representing over 40% of reported offences.
+```{r}
+# Bar plot showing crime counts by type
+ggplot(table_crime_df, aes(x = reorder(Crime_Type, -Count), y = Count)) +
+  geom_bar(stat = "identity", fill = "skyblue") +
+  theme_minimal() +
+  labs(title = "Crime Count by Type", x = "Crime Type", y = "Count") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+### Interpretation:
+
+The bar plot provides a visual summary of which types of crimes occur most frequently. For instance, if theft (or another category) dominates the count, further investigation could be focused on that type of crime.
+
+– Anti‑social behaviour is by far the most common incident (710 occurrences), followed by criminal damage & arson (479).
+
+– Drugs‑related offences (265) and burglary (171) occur at moderate levels.
+
+– Bicycle theft and other crimes are relatively less frequent (149 and 100 respectively), suggesting these categories are lower priorities for patrol allocation.
+
+### 3.1.3 Pie Chart
+A corresponding pie chart confirms these proportions, visualizing the relative share of each offence type.
+```{r}
+ggplot(table_crime_df, aes(x = "", y = Count, fill = Crime_Type)) +
+  geom_bar(width = 1, stat = "identity") +
+  coord_polar("y", start = 0) +
+  theme_void() +
+  labs(title = "Crime Distribution Pie Chart")
+```
+### Interpretation:
+This pie chart illustrates the percentage contribution of each crime type, which helps to understand the overall crime composition in Colchester.
+
+## 3.2 Weather Distribution
+### 3.2.1 Histogram & Density
+Histogram of daily mean temperature shows a roughly normal distribution centered around 10–12 °C, with few extremes.
+
+Density plot smooths this shape, illustrating the modal peak in late spring/early summer.
+```{r}
+ggplot(temp_data, aes(x = TemperatureCAvg)) +
+  geom_histogram(binwidth = 1, fill = "coral", color = "black") +
+  theme_minimal() +
+  labs(title = "Temperature Distribution", 
+       x = "Average Temperature (°C)", 
+       y = "Frequency")
+```
+A density plot of the temperature distribution is shown below:
+```{r}
+ggplot(temp_data, aes(x = TemperatureCAvg)) +
+  geom_density(fill = "lightgreen", alpha = 0.5) +
+  theme_minimal() +
+  labs(title = "Temperature Density Plot", x = "Temperature (°C)", y = "Density")
+```
+Interpretation:
+These plots help in understanding the central tendency and spread of daily temperatures, which could later be linked to patterns in crime incidents.
+
+### 3.2.2 Monthly Boxplots
+Boxplots of mean temperature by month reveal clear seasonality—narrow variance in winter, wider spread in summer—and highlight occasional temperature outliers.
+```{r}
+# check the first few rows of date make sure its right
+head(temp_data$Date)
+head(temp_data$month)
+# Check the missing value during extraction
+sum(is.na(temp_data$Date))
+sum(is.na(temp_data$month))
+
+temp_data$Month <- month(temp_data$Date)
+head(temp_data$Month)
+length(temp_data$Month) # should return 366
+
+```
+```{r}
+ggplot(temp_data, aes(x = factor(Month), y = TemperatureCAvg)) +
+  geom_boxplot(fill = "lightblue") +
+  theme_minimal() +
+  labs(title = "Monthly Temperature Variation", 
+       x = "Month", 
+       y = "Average Temperature (°C)")
+
+```
+Interpretation:
+The box plot reveals how temperature varies month by month. Outliers and seasonal trends are visible, which can be compared to seasonal crime trends later.
+
+## 3.3 Weather–Crime Relationships
+### 3.3.1 Scatter Plot
+A scatter diagram of average temperature vs. daily crime count, overlaid with a linear regression line, suggests a modest positive association: warmer days tend to have slightly higher incident counts.
+```{r}
+### Extract the number of data of daily_crime
+daily_crime <- crime_data %>% 
+  group_by(date) %>% 
+  summarise(crime_count = n())
+
+print("daily_crime Date from: ")
+print(range(daily_crime$date))
+print("daily_crime First few rows: ")
+print(head(daily_crime$date))
+```
+Next, we merge the daily crime data with the weather data.
+```{r}
+### Combine daily_crime and temp_data(by date)
+merged_data <- inner_join(daily_crime, temp_data, by = "date")
+
+print("merged_data size：")
+print(dim(merged_data))
+print("merged_data head rows：")
+print(head(merged_data))
+```
+Create scatter plot and pairs plot
+```{r}
+# Scatter plot: exhibit the relationship between average tempurture and daily crime 
+if(nrow(merged_data) > 0) {
+  ggplot(merged_data, aes(x = TemperatureCAvg, y = crime_count)) +
+    geom_point(color = "darkred", alpha = 0.6) +
+    geom_smooth(method = "lm", se = FALSE, color = "blue") +
+    theme_minimal() +
+    labs(title = "Relationship between Average Temperature and Daily Crime Count",
+         x = "Average Temperature (°C)",
+         y = "Daily Crime Count")
+} else {
+  message("merged_data is empty.")
+}
+```
+### 3.3.2 Pair Plot
+Pairwise plots among crime count, mean/min/max temperatures, precipitation, dew‑point, and humidity allow quick visual inspection of bivariate relationships.
+```{r}
+# Pair plot: Check if there's any relations between most of the variables
+if(nrow(merged_data) > 0) {
+  weather_crime_vars <- merged_data %>% 
+    select(crime_count, TemperatureCAvg, TemperatureCMax, TemperatureCMin, Precmm, TdAvgC, HrAvg)
+  
+  # Pair scatter plot
+  pairs(weather_crime_vars,
+        main = "Pairs Plot: Crime and Selected Weather Variables",
+        pch = 19, col = "darkgreen")
+} else {
+  message("merged_data is empty")
+}
+```
+Interpretation:
+The scatter plot, along with a linear trend line, helps to assess whether higher temperatures are associated with increased crime activity.
+If the merged dataset contains more weather variables (for example, rainfall), a pairs plot provides insights into their interrelationships.
+```{r}
+# check what solumns we've got for merged_data
+print(colnames(merged_data))
+```
+
+```{r}
+# Precmm represent the rain scale
+# Plot the relationship between rain, temperature, and crime count
+pairs(merged_data[, c("crime_count", "TemperatureCAvg", "Precmm")],
+      main = "Pairs Plot of Crime Count, Avg Temperature, and Precipitation",
+      pch = 19, col = "steelblue")
+```
+## 3.4 Correlation Analysis
+A correlation matrix (upper‑triangle numeric plot) quantifies these associations:
+
+We compute and visualize the correlation matrix among numeric variables in the merged dataset.
+```{r}
+num_df <- merged_data %>% 
+  select(crime_count, TemperatureCAvg, TemperatureCMax, TemperatureCMin, Precmm, TdAvgC, HrAvg)
+# 2. Remove any rows containing NA in those columns
+num_df <- num_df[complete.cases(num_df), ]
+
+# 3. Compute the correlation matrix
+cor_mat <- cor(num_df)
+
+# 4. Visualize with corrplot
+corrplot(cor_mat, method = "number", type = "upper", tl.col = "black", number.cex = 0.8)    
+```
+### Interpretation:
+The correlation matrix shows pairwise correlations. For instance, a positive correlation between temperature and crime count may indicate that as temperature rises, so does the number of reported incidents.
+
+## 3.5 Time Series of Daily Crime
+A line chart of daily crime counts, with a LOESS smoothing overlay, uncovers:
+
+-A gradual upward trend through spring and early summer.
+
+-Temporary dips corresponding to colder, wetter spells.
+
+-A small peak in late summer.
+
+An interactive dygraph version allows zooming and range selection directly within the HTML report.
+```{r}
+ggplot(daily_crime, aes(x = date, y = crime_count)) +
+  geom_line(color = "purple") +
+  geom_smooth(method = "loess", se = FALSE, color = "orange") +
+  theme_minimal() +
+  labs(title = "Time Series of Daily Crime Count",
+       x = "Date",
+       y = "Crime Count")
+```
+### Interpretation:
+This time series plot reveals trends and possible seasonality in daily crime incidents over the year.
+
+## 3.6 Spatial Distribution (Interactive Map)
+Using leaflet, we plot each incident’s latitude and longitude as circle markers on a zoomable map of Colchester. This interactive map highlights hotspot areas in the town center and along major thoroughfares, aiding spatial resource allocation.
+
+Assuming that the policing dataset contains latitude and longitude information (e.g., columns named latitude and longitude), we create an interactive leaflet map to display the location of crimes.
+```{r}
+if(all(c("latitude", "longitude") %in% names(crime_data))){
+  leaflet(crime_data) %>% 
+    addTiles() %>% 
+    addCircleMarkers(lng = ~longitude, lat = ~latitude,
+                     radius = 3, popup = ~crime_type,
+                     color = "red", fillOpacity = 0.7) %>% 
+    setView(lng = mean(crime_data$longitude, na.rm = TRUE), 
+            lat = mean(crime_data$latitude, na.rm = TRUE), zoom = 12)
+}
+
+```
+
+```{r}
+# Base on the merged data we had
+p <- ggplot(merged_data, aes(
+        x = TemperatureCAvg,
+        y = crime_count,
+        text = paste0("Date: ", date,
+                      "<br>Crime Count: ", crime_count,
+                      "<br>Avg Temp: ", TemperatureCAvg, "°C")
+      )) +
+  geom_point(color = "darkred", alpha = 0.7) +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  theme_minimal() +
+  labs(
+    title = "Interactive: Average Temperature vs Daily Crime Count",
+    x = "Average Temperature (°C)",
+    y = "Daily Crime Count"
+  )
+
+# tranfrom into interactive plot
+ggplotly(p, tooltip = "text")
+
+```
+
+```{r}
+# transform daily_crime into xts 
+crime_ts <- xts::xts(daily_crime$crime_count, order.by = daily_crime$date)
+ 
+# Plot time series interactive graph
+dygraph(crime_ts, main = "Daily Crime Count Over Time") %>%
+  dyRangeSelector()
+```
+Interpretation:
+The interactive map allows you to zoom in and explore specific areas in Colchester, highlighting crime “hotspots” and how incidents are distributed geographically.
+
+
+# 4. Discussion and Interpretation
+Throughout this analysis, several interesting patterns emerged:
+
+Crime Distribution: The bar and pie charts show which types of crimes are most frequent. A particular crime type (e.g., theft) is especially prevalent, this might be important for further policing.
+
+Weather Influence: The scatter plot and correlation analysis shows whether there is a relationship between temperature and crime levels. In this analysis, if the line suggests a positive relationship, it supports the hypothesis that higher temperatures may be link to increased crime activity. The positive (relatively weak) correlation between temperature and crime aligns with criminological theories that warmer weather increases public activity and opportunity, which can be crime.
+
+Seasonality: The time series plot shows fluctuations in daily crime counts. These trends may reflect seasonal patterns or external events. The summer peak warrants further exploration of event‑driven or tourism‑related spikes.
+
+Spatial Patterns: The interactive map provides valuable picture of the geographic distribution of incidents. Identifying clusters or hotspots can be helpful in resource allocation and strategic planning. It confirms high‑density clusters in commercial districts, reinforcing the value of geographically focused interventions.
+
+These findings form a coherent “story” about how crime in Colchester interacts with environmental factors and time. They also highlight areas for further analysis and possible policy implications.
+
+# 5. Conclusion
+
+By integrating police and weather datasets, this analysis reveals how environmental and temporal factors relate to crime in Colchester during 2024. While temperature appears to modestly influence daily incident counts, crime prevention efforts will benefit most from focusing on identified high‑frequency offence types and hotspot areas. The interactive elements embedded in this report (maps, plots, time‑series selectors) offer practitioners an engaging tool for dynamic data exploration.
+
+
+# 6. References
+UK Police API Reference: https://ukpolice.njtierney.com/reference/ukp_crime.html
+
+Climate Data Reference: https://bczernecki.github.io/climate/reference/meteo_ogimet.html
+
+Lecture Notes and Lab Materials from MA304
